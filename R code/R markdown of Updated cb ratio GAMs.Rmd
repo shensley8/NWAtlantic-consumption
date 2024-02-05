@@ -1,0 +1,1321 @@
+---
+title: "Updated Analysis of C:B Ratio Over Time"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Consumption:Biomass Analysis
+
+The purpose of this analysis is to determine if prey consumption across 17 different fish species has been changing over time. Current analysis methods include analyzing this data with a geom_gls method as well as a GAM method of analysis.
+
+```{r, echo=FALSE}
+# load libraries
+library(mgcv)
+library(here)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+```
+
+
+```{r, echo=FALSE}
+# Loading in data
+setwd("C:/Users/hensl/Downloads/NOAA IN FISH! Internship/IN FISH Woods Hole Project")
+data_comb <- read.csv("GAM Data/updated cb ratios.csv")
+```
+
+
+
+```{r, echo=FALSE}
+# Converting the species codes (svspp) to common names, just for ease of reference for myself:
+data_comb$svspp[data_comb$svspp == 15] <- 'Spiny.Dogfish'
+data_comb$svspp[data_comb$svspp == 23] <- 'Winter.Skate'
+data_comb$svspp[data_comb$svspp == 75] <- 'Pollock'
+data_comb$svspp[data_comb$svspp == 76] <- 'White.Hake'
+data_comb$svspp[data_comb$svspp == 77] <- 'Red.Hake'
+data_comb$svspp[data_comb$svspp == 197] <- 'Goosefish'
+data_comb$svspp[data_comb$svspp == 28] <- 'Thorny.Skate'
+data_comb$svspp[data_comb$svspp == 73] <- 'Atlantic.Cod'
+data_comb$svspp[data_comb$svspp == 164] <- 'Sea.Raven'
+data_comb$svspp[data_comb$svspp == 72] <- 'Silver.Hake'
+data_comb$svspp[data_comb$svspp == 103] <- 'Summer.Flounder'
+data_comb$svspp[data_comb$svspp == 104] <- 'Fourspot.Flounder'
+data_comb$svspp[data_comb$svspp == 108] <- 'Windowpane'
+data_comb$svspp[data_comb$svspp == 112] <- 'Buckler.Dory'
+data_comb$svspp[data_comb$svspp == 135] <- 'Blue.Fish'
+data_comb$svspp[data_comb$svspp == 163] <- 'Longhorn.Sculpin'
+data_comb$svspp[data_comb$svspp == 172] <- 'Striped.Searobin'
+```
+
+
+```{r, echo=FALSE}
+# filtering data to only show all prey types
+data_comb_f <- filter(data_comb, prey == 'all')
+```
+
+```{r, echo=FALSE}
+# removing NAs
+data_comb_f <- data_comb_f %>% na.omit(cb)
+```
+
+```{r, echo=FALSE}
+# omitting all 0's from the dataset
+rows_to_keep <- data_comb_f$cb > 0.000000000
+data_comb_f <- data_comb_f[rows_to_keep, ]
+
+# starting time series in 1981 for sensitivity analysis
+data_comb_f <- data_comb_f %>% 
+  filter(year > 1980)
+
+# log transforming c:b ratios 
+data_comb_f$cb <- log(data_comb_f$cb)
+```
+
+## Building generalized linear models and generalized additive models broken down by each study species:
+For the GLM plots, I used the geom_gls() function from the ecodata package so that trend lines would only appear on the plots if a significant trend was detected. For the GAMs, I built the models to the best fit model (lowest AIC value), and therefore the functional set up of the GAMs between some of the species are different. I did additionally z-score the bottom temperature data when using it in the model, but wasn't sure if this was appropriate to do, especially since the bottom temperature is incorporated into the model output of consumption:biomass values. In case it was something we explored, I incorporated the information in these models presented below and switched between the z-scored bottom temperature and raw bottom temperature depending on which produced a better model output. I would like to note for this that sometimes the trend depicted via the z-scored bottom temperature versus the raw bottom temperature was vastly different. Please let me know your thoughts!
+
+### Looking at consumption across spring
+```{r, echo=FALSE}
+# filtering data for spring 
+dc_spring <- filter(data_comb_f, seacat == 'SPRING')
+```
+
+```{r, echo=FALSE, out.width='100%', fig.height=6}
+## Spiny Dogfish
+### GLM
+dc_spring_s.d <- filter(dc_spring, svspp == 'Spiny.Dogfish')
+s.d_plot <- ggplot(data = dc_spring_s.d, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Spiny Dogfish")
+s.d_plot
+
+### GAM
+dc_spring_s.d <- filter(dc_spring, svspp == 'Spiny.Dogfish')
+dc_spring_s.d$z_bt <- (dc_spring_s.d$bt - mean(dc_spring_s.d$bt))/(dc_spring_s.d$bt_sd)
+mod1 <- gam(cb ~ s(year) + s(bt), data=dc_spring_s.d, family = 'gaussian')
+summary(mod1)
+mod1$aic
+plot(mod1, pages=1, scheme=1, unconditional=TRUE, main = "Spiny Dogfish")
+gam.check(mod1)
+
+## Winter Skate
+### GLM
+dc_spring_w.s <- filter(dc_spring, svspp == 'Winter.Skate')
+w.s_plot <- ggplot(data = dc_spring_w.s,aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Winter Skate")
+w.s_plot
+
+### GAM
+dc_spring_w.s <- filter(dc_spring, svspp == 'Winter.Skate')
+dc_spring_w.s$z_bt <- (dc_spring_w.s$bt - mean(dc_spring_w.s$bt))/(dc_spring_w.s$bt_sd)
+mod2 <- gam(cb ~ s(year) + s(bt), data=dc_spring_w.s, family = 'gaussian')
+summary(mod2)
+mod2$aic
+plot(mod2, pages=1, scheme=1, unconditional=TRUE, main = "Winter Skate")
+gam.check(mod2)
+
+## Pollock
+### GLM
+dc_spring_p <- filter(dc_spring, svspp == 'Pollock')
+p_plot <- ggplot(data = dc_spring_p, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Pollock")
+p_plot
+
+### GAM
+dc_spring_p <- filter(dc_spring, svspp == 'Pollock')
+dc_spring_p$z_bt <- (dc_spring_p$bt - mean(dc_spring_p$bt))/(dc_spring_p$bt_sd)
+mod3 <- gam(cb ~ s(year) + s(bt), data=dc_spring_p, family = 'gaussian')
+summary(mod3)
+mod3$aic
+plot(mod3, pages=1, scheme=1, unconditional=TRUE, main = "Pollock")
+gam.check(mod3)
+
+## White Hake
+### GLM
+dc_spring_w.h <- filter(dc_spring, svspp == 'White.Hake')
+w.h_plot <- ggplot(data = dc_spring_w.h, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("White Hake")
+w.h_plot
+
+### GAM
+dc_spring_w.h <- filter(dc_spring, svspp == 'White.Hake')
+dc_spring_w.h$z_bt <- (dc_spring_w.h$bt - mean(dc_spring_w.h$bt))/(dc_spring_w.h$bt_sd)
+mod4 <- gam(cb ~ s(year) + s(bt), data=dc_spring_w.h, family = 'gaussian')
+summary(mod4)
+mod4$aic
+plot(mod4, pages=1, scheme=1, unconditional=TRUE, main = "White Hake")
+gam.check(mod4)
+
+## Red Hake
+### GLM
+dc_spring_r.h <- filter(dc_spring, svspp == 'Red.Hake')
+r.h_plot <- ggplot(data = dc_spring_r.h, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Red Hake")
+r.h_plot
+
+### GAM
+dc_spring_r.h <- filter(dc_spring, svspp == 'Red.Hake')
+dc_spring_r.h$z_bt <- (dc_spring_r.h$bt - mean(dc_spring_r.h$bt))/(dc_spring_r.h$bt_sd)
+mod5 <- gam(cb ~ s(year) + s(bt), data=dc_spring_r.h, family = 'gaussian')
+summary(mod5)
+mod5$aic
+plot(mod5, pages=1, scheme=1, unconditional=TRUE, main = "Red Hake")
+gam.check(mod5)
+
+## Goosefish
+### GLM
+dc_spring_g <- filter(dc_spring, svspp == 'Goosefish')
+g_plot <- ggplot(data = dc_spring_g, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Goosefish")
+g_plot
+
+### GAM
+dc_spring_g <- filter(dc_spring, svspp == 'Goosefish')
+dc_spring_g$z_bt <- (dc_spring_g$bt - mean(dc_spring_g$bt))/(dc_spring_g$bt_sd)
+mod6 <- gam(cb ~ s(year) + s(bt), data=dc_spring_g, family = 'gaussian')
+summary(mod6)
+mod6$aic
+plot(mod6, pages=1, scheme=1, unconditional=TRUE, main = "Goosefish")
+gam.check(mod6)
+
+## Thorny Skate
+### GLM
+dc_spring_t.s <- filter(dc_spring, svspp == 'Thorny.Skate')
+t.s_plot <- ggplot(data = dc_spring_t.s, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Thorny Skate")
+t.s_plot
+
+### GAM
+dc_spring_t.s <- filter(dc_spring, svspp == 'Thorny.Skate')
+dc_spring_t.s$z_bt <- (dc_spring_t.s$bt - mean(dc_spring_t.s$bt))/(dc_spring_t.s$bt_sd)
+mod7 <- gam(cb ~ s(year) + s(bt), data=dc_spring_t.s, family = 'gaussian')
+summary(mod7)
+mod7$aic
+plot(mod7, pages=1, scheme=1, unconditional=TRUE, main = "Thorny Skate")
+gam.check(mod7)
+
+## Atlantic Cod
+### GLM
+dc_spring_a.c <- filter(dc_spring, svspp == 'Atlantic.Cod')
+a.c_plot <- ggplot(data = dc_spring_a.c,aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Atlantic Cod")
+a.c_plot
+
+### GAM
+dc_spring_a.c <- filter(dc_spring, svspp == 'Atlantic.Cod')
+dc_spring_a.c$z_bt <- (dc_spring_a.c$bt - mean(dc_spring_a.c$bt))/(dc_spring_a.c$bt_sd)
+mod8 <- gam(cb ~ s(year) + s(bt), data=dc_spring_a.c, family = 'gaussian')
+summary(mod8)
+mod8$aic
+plot(mod8, pages=1, scheme=1, unconditional=TRUE, main = "Atlantic Cod")
+gam.check(mod8)
+
+## Sea Raven
+### GLM
+dc_spring_s.r <- filter(dc_spring, svspp == 'Sea.Raven')
+s.r_plot <- ggplot(data = dc_spring_s.r, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Sea Raven")
+s.r_plot
+
+### GAM
+dc_spring_s.r <- filter(dc_spring, svspp == 'Sea.Raven')
+dc_spring_s.r$z_bt <- (dc_spring_s.r$bt - mean(dc_spring_s.r$bt))/(dc_spring_s.r$bt_sd)
+mod9 <- gam(cb ~ s(year) + s(bt), data=dc_spring_s.r, family = 'gaussian')
+summary(mod9)
+mod9$aic
+plot(mod9, pages=1, scheme=1, unconditional=TRUE, main = "Sea Raven")
+gam.check(mod9)
+
+## Silver Hake
+### GLM
+dc_spring_s.h <- filter(dc_spring, svspp == 'Silver.Hake')
+s.h_plot <- ggplot(data = dc_spring_s.h, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Silver Hake")
+s.h_plot
+
+### GAM
+dc_spring_s.h <- filter(dc_spring, svspp == 'Silver.Hake')
+dc_spring_s.h$z_bt <- (dc_spring_s.h$bt - mean(dc_spring_s.h$bt))/(dc_spring_s.h$bt_sd)
+mod10 <- gam(cb ~ s(year) + s(bt), data=dc_spring_s.h, family = 'gaussian')
+summary(mod10)
+mod10$aic
+plot(mod10, pages=1, scheme=1, unconditional=TRUE, main = "Silver Hake")
+gam.check(mod10)
+
+## Summer Flounder
+### GLM
+dc_spring_s.f <- filter(dc_spring, svspp == 'Summer.Flounder')
+s.f_plot <- ggplot(data = dc_spring_s.f, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Summer Flounder")
+s.f_plot
+
+### GAM
+dc_spring_s.f <- filter(dc_spring, svspp == 'Summer.Flounder')
+dc_spring_s.f$z_bt <- (dc_spring_s.f$bt - mean(dc_spring_s.f$bt))/(dc_spring_s.f$bt_sd)
+mod11 <- gam(cb ~ s(year) + s(bt), data=dc_spring_s.f, family = 'gaussian')
+summary(mod11)
+mod11$aic
+plot(mod11, pages=1, scheme=1, unconditional=TRUE, main = "Summer Flounder")
+gam.check(mod11)
+
+## Fourspot Flounder
+### GLM
+dc_spring_f.f <- filter(dc_spring, svspp == 'Fourspot.Flounder')
+f.f_plot <- ggplot(data = dc_spring_f.f, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Fourspot Flounder")
+f.f_plot
+
+### GAM
+dc_spring_f.f <- filter(dc_spring, svspp == 'Fourspot.Flounder')
+dc_spring_f.f$z_bt <- (dc_spring_f.f$bt - mean(dc_spring_f.f$bt))/(dc_spring_f.f$bt_sd)
+mod12 <- gam(cb ~ s(year) + s(bt), data=dc_spring_f.f, family = 'gaussian')
+summary(mod12)
+mod12$aic
+plot(mod12, pages=1, scheme=1, unconditional=TRUE, main = "Fourspot Flounder")
+gam.check(mod12)
+
+## Windowpane
+### GLM
+dc_spring_w <- filter(dc_spring, svspp == 'Windowpane')
+w_plot <- ggplot(data = dc_spring_w, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Windowpane")
+w_plot
+
+### GAM
+dc_spring_w <- filter(dc_spring, svspp == 'Windowpane')
+dc_spring_w$z_bt <- (dc_spring_w$bt - mean(dc_spring_w$bt))/(dc_spring_w$bt_sd)
+mod13 <- gam(cb ~ s(year) + s(bt), data=dc_spring_w, family = 'gaussian')
+summary(mod13)
+mod13$aic
+plot(mod13, pages=1, scheme=1, unconditional=TRUE, main = "Windowpane")
+gam.check(mod13)
+
+## Buckler Dory
+### GLM
+dc_spring_b.d <- filter(dc_spring, svspp == 'Buckler.Dory')
+b.d_plot <- ggplot(data = dc_spring_b.d, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Buckler Dory")
+b.d_plot
+
+### GAM
+dc_spring_b.d <- filter(dc_spring, svspp == 'Buckler.Dory')
+dc_spring_b.d$z_bt <- (dc_spring_b.d$bt - mean(dc_spring_b.d$bt))/(dc_spring_b.d$bt_sd)
+mod14 <- gam(cb ~ s(year) , data=dc_spring_b.d, family = 'gaussian')
+mod14.a <- gam(cb ~ s(bt) , data=dc_spring_b.d, family = 'gaussian')
+summary(mod14)
+summary(mod14.a)
+mod14$aic
+mod14.a$aic
+plot(mod14, pages=1, scheme=1, unconditional=TRUE, main = "Buckler Dory")
+plot(mod14.a, pages=1, scheme=1, unconditional=TRUE, main = "Buckler Dory")
+gam.check(mod14)
+gam.check(mod14.a)
+
+## Blue Fish
+### GLM
+dc_spring_b.f <- filter(dc_spring, svspp == 'Blue.Fish')
+b.f_plot <- ggplot(data = dc_spring_b.f, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Blue Fish")
+b.f_plot
+
+### GAM
+dc_spring_b.f <- filter(dc_spring, svspp == 'Blue.Fish')
+dc_spring_b.f$z_bt <- (dc_spring_b.f$bt - mean(dc_spring_b.f$bt))/(dc_spring_b.f$bt_sd)
+mod15 <- gam(cb ~ s(year) + s(bt), data=dc_spring_b.f, family = 'gaussian')
+summary(mod15)
+mod15$aic
+plot(mod15, pages=1, scheme=1, unconditional=TRUE, main = "Blue Fish")
+gam.check(mod15)
+
+## Longhorn Sculpin
+### GLM
+dc_spring_l.s <- filter(dc_spring, svspp == 'Longhorn.Sculpin')
+l.s_plot <- ggplot(data = dc_spring_l.s, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Longhorn Sculpin")
+l.s_plot
+
+### GAM
+dc_spring_l.s <- filter(dc_spring, svspp == 'Longhorn.Sculpin')
+dc_spring_l.s$z_bt <- (dc_spring_l.s$bt - mean(dc_spring_l.s$bt))/(dc_spring_l.s$bt_sd)
+mod16 <- gam(cb ~ s(year) + s(z_bt), data=dc_spring_l.s, family = 'gaussian')
+summary(mod16)
+mod16$aic
+plot(mod16, pages=1, scheme=1, unconditional=TRUE, main = "Longhorn Sculpin")
+gam.check(mod16)
+
+## Striped Searobin
+### GLM
+dc_spring_s.s <- filter(dc_spring, svspp == 'Striped.Searobin')
+s.s_plot <- ggplot(data = dc_spring_s.s, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Striped Searobin")
+s.s_plot
+
+### GAM
+dc_spring_s.s <- filter(dc_spring, svspp == 'Striped.Searobin')
+dc_spring_s.s$z_bt <- (dc_spring_s.s$bt - mean(dc_spring_s.s$bt))/(dc_spring_s.s$bt_sd)
+mod17 <- gam(cb ~ s(year), data=dc_spring_s.s, family = 'gaussian')
+mod17.a <- gam(cb ~ s(z_bt), data=dc_spring_s.s, family = 'gaussian')
+summary(mod17)
+summary(mod17.a)
+mod17$aic
+mod17.a$aic
+plot(mod17, pages=1, scheme=1, unconditional=TRUE, main = "Striped Searobin")
+plot(mod17.a, pages=1, scheme=1, unconditional=TRUE, main = "Striped Searobin")
+gam.check(mod17)
+gam.check(mod17.a)
+```
+
+
+```{r, echo=FALSE, out.width='100%', fig.height=6}
+# Combining all of the GLM products into one plot
+glm_cb <- ggarrange(s.d_plot, w.s_plot, p_plot, w.h_plot, r.h_plot, g_plot, t.s_plot, a.c_plot, s.r_plot, s.h_plot,
+s.f_plot, f.f_plot, w_plot, b.d_plot, b.f_plot, l.s_plot, s.s_plot, ncol = 4, nrow = 5)
+glm_cb
+```
+
+## Comparing GAMs side by side for all species of trends in consumption:biomass ratios:
+For this, I broke the analysis up between looking at trends in c:b over time, and then trends in c:b in relation to bottom temperature for the purpose of allowing for a direct comparison between study species. Additionally, I did this to allow us to hone in on just how c:b is changing over time if we decide that including bottom temperature in the model is not appropriate.
+
+```{r, echo=FALSE, out.width='100%', fig.height=6}
+# GAM of year v. cb --> I save each of these figures (total of 2 figures) once the matrix of 3x3 is filled in order to have two large figures that I can compare all species with
+par(mfrow=c(3,3))
+mod1 <- gam(cb ~ s(year), data=dc_spring_s.d, family = 'gaussian')
+plot(mod1, scheme=1, unconditional=TRUE, main = "Spiny Dogfish") 
+mod2 <- gam(cb ~ s(year), data=dc_spring_w.s, family = 'gaussian')
+plot(mod2, scheme=1, unconditional=TRUE, main = "Winter Skate") 
+mod3 <- gam(cb ~ s(year), data=dc_spring_p, family = 'gaussian')
+plot(mod3, scheme=1, unconditional=TRUE, main = "Pollock") 
+mod4 <- gam(cb ~ s(year), data=dc_spring_w.h, family = 'gaussian')
+plot(mod4, scheme=1, unconditional=TRUE, main = "White Hake")
+mod5 <- gam(cb ~ s(year), data=dc_spring_r.h, family = 'gaussian')
+plot(mod5, scheme=1, unconditional=TRUE, main = "Red Hake")
+mod6 <- gam(cb ~ s(year), data=dc_spring_g, family = 'gaussian')
+plot(mod6, scheme=1, unconditional=TRUE, main = "Goosefish")
+mod7 <- gam(cb ~ s(year), data=dc_spring_t.s, family = 'gaussian')
+plot(mod7, scheme=1, unconditional=TRUE, main = "Thorny Skate")
+mod8 <- gam(cb ~ s(year), data=dc_spring_a.c, family = 'gaussian')
+plot(mod8, scheme=1, unconditional=TRUE, main = "Atlantic Cod")
+mod9 <- gam(cb ~ s(year), data=dc_spring_s.r, family = 'gaussian')
+plot(mod9, scheme=1, unconditional=TRUE, main = "Sea Raven")
+mod10 <- gam(cb ~ s(year), data=dc_spring_s.h, family = 'gaussian')
+plot(mod10, scheme=1, unconditional=TRUE, main = "Silver Hake")
+mod11 <- gam(cb ~ s(year), data=dc_spring_s.f, family = 'gaussian')
+plot(mod11, scheme=1, unconditional=TRUE, main = "Summer Flounder")
+mod12 <- gam(cb ~ s(year), data=dc_spring_f.f, family = 'gaussian')
+plot(mod12, scheme=1, unconditional=TRUE, main = "Fourspot Flounder")
+mod13 <- gam(cb ~ s(year), data=dc_spring_w, family = 'gaussian')
+plot(mod13, scheme=1, unconditional=TRUE, main = "Windowpane")
+mod14 <- gam(cb ~ s(year), data=dc_spring_b.d, family = 'gaussian')
+plot(mod14, scheme=1, unconditional=TRUE, main = "Buckler Dory")
+mod15 <- gam(cb ~ s(year), data=dc_spring_b.f, family = 'gaussian')
+plot(mod15, scheme=1, unconditional=TRUE, main = "Blue Fish")
+mod16 <- gam(cb ~ s(year), data=dc_spring_l.s, family = 'gaussian')
+plot(mod16, scheme=1, unconditional=TRUE, main = "Longhorn Sculpin")
+mod17 <- gam(cb ~ s(year), data=dc_spring_s.s, family = 'gaussian')
+plot(mod17, scheme = 1, unconditional=TRUE, main = "Striped Searobin")
+
+# GAM of bt v. cb --> same note as above
+par(mfrow = c(3,3))
+mod1 <- gam(cb ~ s(bt), data=dc_spring_s.d, family = 'gaussian')
+plot(mod1, scheme=1, unconditional=TRUE, main = "Spiny Dogfish")
+mod2 <- gam(cb ~ s(bt), data=dc_spring_w.s, family = 'gaussian')
+plot(mod2, scheme=1, unconditional=TRUE, main = "Winter Skate")
+mod3 <- gam(cb ~ s(bt), data=dc_spring_p, family = 'gaussian')
+plot(mod3, scheme=1, unconditional=TRUE, main = "Pollock")
+mod4 <- gam(cb ~ s(bt), data=dc_spring_w.h, family = 'gaussian')
+plot(mod4, scheme=1, unconditional=TRUE, main = "White Hake")
+mod5 <- gam(cb ~ s(bt), data=dc_spring_r.h, family = 'gaussian')
+plot(mod5, scheme=1, unconditional=TRUE, main = " Red Hake")
+mod6 <- gam(cb ~ s(bt), data=dc_spring_g, family = 'gaussian')
+plot(mod6, scheme=1, unconditional=TRUE, main = "Goosefish")
+mod7 <- gam(cb ~ s(bt), data=dc_spring_t.s, family = 'gaussian')
+plot(mod7, scheme=1, unconditional=TRUE, main = "Thorny Skate")
+mod8 <- gam(cb ~ s(bt), data=dc_spring_a.c, family = 'gaussian')
+plot(mod8, scheme=1, unconditional=TRUE, main = "Atlantic Cod")
+mod9 <- gam(cb ~ s(bt), data=dc_spring_s.r, family = 'gaussian')
+plot(mod9, scheme=1, unconditional=TRUE, main = "Sea Raven")
+mod10 <- gam(cb ~ s(bt), data=dc_spring_s.h, family = 'gaussian')
+plot(mod10, scheme=1, unconditional=TRUE, main = "Silver Hake")
+mod11 <- gam(cb ~ s(bt), data=dc_spring_s.f, family = 'gaussian')
+plot(mod11, scheme=1, unconditional=TRUE, main = "Summer Flounder")
+mod12 <- gam(cb ~ s(bt), data=dc_spring_f.f, family = 'gaussian')
+plot(mod12, scheme=1, unconditional=TRUE, main = "Fourspot Flounder")
+mod13 <- gam(cb ~ s(bt), data=dc_spring_w, family = 'gaussian')
+plot(mod13, scheme=1, unconditional=TRUE, main = "Windowpane")
+mod14 <- gam(cb ~ s(bt) , data=dc_spring_b.d, family = 'gaussian')
+plot(mod14, scheme=1, unconditional=TRUE, main = "Buckler Dory")
+mod15 <- gam(cb ~ s(bt), data=dc_spring_b.f, family = 'gaussian')
+plot(mod15, scheme=1, unconditional=TRUE, main = "Blue Fish")
+mod16 <- gam(cb ~ s(z_bt), data=dc_spring_l.s, family = 'gaussian')
+plot(mod16, scheme=1, unconditional=TRUE, main = "Longhorn Sculpin")
+mod17 <- gam(cb ~ s(z_bt), data=dc_spring_s.s, family = 'gaussian')
+plot(mod17, scheme = 1, unconditional=TRUE, main = "Striped Searobin")
+```
+
+
+```{r, echo=FALSE}
+# Filtering dataset to focus only on fall
+dc_fall <- filter(data_comb_f, seacat == 'FALL')
+```
+
+### Looking at consumption across fall
+
+```{r, echo=FALSE, out.width='100%', fig.height=6}
+# Building GLMs and GAMs for study species across all prey types for fall:
+## Spiny Dogfish
+### GLM
+dc_fall_s.d <- filter(dc_fall, svspp == 'Spiny.Dogfish')
+s.d_plot_f <- ggplot(data = dc_fall_s.d, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Spiny Dogfish")
+s.d_plot_f
+
+### GAM
+dc_fall_s.d <- filter(dc_fall, svspp == 'Spiny.Dogfish')
+dc_fall_s.d$z_bt <- (dc_fall_s.d$bt - mean(dc_fall_s.d$bt))/(dc_fall_s.d$bt_sd)
+mod18 <- gam(cb ~ s(year) + s(bt), data=dc_fall_s.d, family = 'gaussian')
+summary(mod18)
+mod18$aic
+plot(mod18, pages=1, scheme=1, unconditional=TRUE, main = "Spiny Dogfish")
+gam.check(mod18)
+
+## Winter Skate
+### GLM
+dc_fall_w.s <- filter(dc_fall, svspp == 'Winter.Skate')
+w.s_plot_f <- ggplot(data = dc_fall_w.s, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Winter Skate")
+w.s_plot_f
+
+### GAM
+dc_fall_w.s <- filter(dc_fall, svspp == 'Winter.Skate')
+dc_fall_w.s$z_bt <- (dc_fall_w.s$bt - mean(dc_fall_w.s$bt))/(dc_fall_w.s$bt_sd)
+mod19 <- gam(cb ~ s(year) + s(z_bt), data=dc_fall_w.s, family = 'gaussian')
+summary(mod19)
+mod19$aic
+plot(mod19, pages=1, scheme=1, unconditional=TRUE, main = "Winter Skate")
+gam.check(mod19)
+
+## Pollock
+### GLM 
+dc_fall_p <- filter(dc_fall, svspp == 'Pollock')
+p_plot_f <- ggplot(data = dc_fall_p, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Pollock")
+p_plot_f
+
+### GAM
+dc_fall_p <- filter(dc_fall, svspp == 'Pollock')
+dc_fall_p$z_bt <- (dc_fall_p$bt - mean(dc_fall_p$bt))/(dc_fall_p$bt_sd)
+mod20 <- gam(cb ~ s(year) + s(bt), data=dc_fall_p, family = 'gaussian')
+summary(mod20)
+mod20$aic
+plot(mod20, pages=1, scheme=1, unconditional=TRUE, main = "Pollock")
+gam.check(mod20)
+
+## White Hake
+### GLM
+dc_fall_w.h <- filter(dc_fall, svspp == 'White.Hake')
+w.h_plot_f <- ggplot(data = dc_fall_w.h, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("White Hake")
+w.h_plot_f
+
+### GAM
+dc_fall_w.h <- filter(dc_fall, svspp == 'White.Hake')
+dc_fall_w.h$z_bt <- (dc_fall_w.h$bt - mean(dc_fall_w.h$bt))/(dc_fall_w.h$bt_sd)
+mod21 <- gam(cb ~ s(year) + s(z_bt), data=dc_fall_w.h, family = 'gaussian')
+summary(mod21)
+mod21$aic
+plot(mod21, pages=1, scheme=1, unconditional=TRUE, main = "White Hake")
+gam.check(mod21)
+
+## Red Hake
+### GLM
+dc_fall_r.h <- filter(dc_fall, svspp == 'Red.Hake')
+r.h_plot_f <- ggplot(data = dc_fall_r.h, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Red Hake")
+r.h_plot_f
+
+### GAM
+dc_fall_r.h <- filter(dc_fall, svspp == 'Red.Hake')
+dc_fall_r.h$z_bt <- (dc_fall_r.h$bt - mean(dc_fall_r.h$bt))/(dc_fall_r.h$bt_sd)
+mod22 <- gam(cb ~ s(year) + s(bt), data=dc_fall_r.h, family = 'gaussian')
+summary(mod22)
+mod22$aic
+plot(mod22, pages=1, scheme=1, unconditional=TRUE, main = "Red Hake")
+gam.check(mod22)
+
+## Goosefish
+### GLM
+dc_fall_g <- filter(dc_fall, svspp == 'Goosefish')
+g_plot_f <- ggplot(data = dc_fall_g, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Goosefish")
+g_plot_f
+
+### GAM
+dc_fall_g <- filter(dc_fall, svspp == 'Goosefish')
+dc_fall_g$z_bt <- (dc_fall_g$bt - mean(dc_fall_g$bt))/(dc_fall_g$bt_sd)
+mod23 <- gam(cb ~ s(year) + s(z_bt), data=dc_fall_g, family = 'gaussian')
+summary(mod23)
+mod23$aic
+plot(mod23, pages=1, scheme=1, unconditional=TRUE, main = "Goosefish")
+gam.check(mod23)
+
+## Thorny Skate
+### GLM
+dc_fall_t.s <- filter(dc_fall, svspp == 'Thorny.Skate')
+t.s_plot_f <- ggplot(data = dc_fall_t.s, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Thorny Skate")
+t.s_plot_f
+
+### GAM
+dc_fall_t.s <- filter(dc_fall, svspp == 'Thorny.Skate')
+dc_fall_t.s$z_bt <- (dc_fall_t.s$bt - mean(dc_fall_t.s$bt))/(dc_fall_t.s$bt_sd)
+mod24 <- gam(cb ~ s(year) + s(bt), data=dc_fall_t.s, family = 'gaussian')
+summary(mod24)
+mod24$aic
+plot(mod24, pages=1, scheme=1, unconditional=TRUE, main = "Thorny Skate")
+gam.check(mod24)
+
+## Atlantic Cod
+### GLM
+dc_fall_a.c <- filter(dc_fall, svspp == 'Atlantic.Cod')
+a.c_plot_f <- ggplot(data = dc_fall_a.c, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Atlanic Cod")
+a.c_plot_f
+
+### GAM
+dc_fall_a.c <- filter(dc_fall, svspp == 'Atlantic.Cod')
+dc_fall_a.c$z_bt <- (dc_fall_a.c$bt - mean(dc_fall_a.c$bt))/(dc_fall_a.c$bt_sd)
+mod25 <- gam(cb ~ s(year) + s(bt), data=dc_fall_a.c, family = 'gaussian')
+summary(mod25)
+mod25$aic
+plot(mod25, pages=1, scheme=1, unconditional=TRUE, main = "Atlantic Cod")
+gam.check(mod25)
+
+## Sea Raven
+### GLM
+dc_fall_s.r <- filter(dc_fall, svspp == 'Sea.Raven')
+s.r_plot_f <- ggplot(data = dc_fall_s.r, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Sea Raven")
+s.r_plot_f
+
+### GAM
+dc_fall_s.r <- filter(dc_fall, svspp == 'Sea.Raven')
+dc_fall_s.r$z_bt <- (dc_fall_s.r$bt - mean(dc_fall_s.r$bt))/(dc_fall_s.r$bt_sd)
+mod26 <- gam(cb ~ s(year) + s(z_bt), data=dc_fall_s.r, family = 'gaussian')
+summary(mod26)
+mod26$aic
+plot(mod26, pages=1, scheme=1, unconditional=TRUE, main = "Sea Raven")
+gam.check(mod26)
+
+## Silver Hake
+### GLM
+dc_fall_s.h <- filter(dc_fall, svspp == 'Silver.Hake')
+s.h_plot_f <- ggplot(data = dc_fall_s.h, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Silver Hake")
+s.h_plot_f
+
+### GAM
+dc_fall_s.h <- filter(dc_fall, svspp == 'Silver.Hake')
+dc_fall_s.h$z_bt <- (dc_fall_s.h$bt - mean(dc_fall_s.h$bt))/(dc_fall_s.h$bt_sd)
+mod27 <- gam(cb ~ s(year) + s(z_bt), data=dc_fall_s.h, family = 'gaussian')
+summary(mod27)
+mod27$aic
+plot(mod27, pages=1, scheme=1, unconditional=TRUE, main = "Silver Hake")
+gam.check(mod27)
+
+## Summer Flounder
+### GLM
+dc_fall_s.f <- filter(dc_fall, svspp == 'Summer.Flounder')
+s.f_plot_f <- ggplot(data = dc_fall_s.f, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Summer Flounder")
+s.f_plot_f
+
+### GAM
+dc_fall_s.f <- filter(dc_fall, svspp == 'Summer.Flounder')
+dc_fall_s.f$z_bt <- (dc_fall_s.f$bt - mean(dc_fall_s.f$bt))/(dc_fall_s.f$bt_sd)
+mod28 <- gam(cb ~ s(year) + s(bt), data=dc_fall_s.f, family = 'gaussian')
+summary(mod28)
+mod28$aic
+plot(mod28, pages=1, scheme=1, unconditional=TRUE, main = "Summer Flounder")
+gam.check(mod28)
+
+## Fourspot Flounder
+### GLM
+dc_fall_f.f <- filter(dc_fall, svspp == 'Fourspot.Flounder')
+f.f_plot_f <- ggplot(data = dc_fall_s.f, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Fourspot Flounder")
+f.f_plot_f
+
+### GAM
+dc_fall_f.f <- filter(dc_fall, svspp == 'Fourspot.Flounder')
+dc_fall_f.f$z_bt <- (dc_fall_f.f$bt - mean(dc_fall_f.f$bt))/(dc_fall_f.f$bt_sd)
+mod29 <- gam(cb ~ s(year) + s(z_bt), data=dc_fall_f.f, family = 'gaussian')
+summary(mod29)
+mod29$aic
+plot(mod29, pages=1, scheme=1, unconditional=TRUE, main = "Fourspot Flounder")
+gam.check(mod29)
+
+## Windowpane
+### GLM
+dc_fall_w <- filter(dc_fall, svspp == 'Windowpane')
+w_plot_f <- ggplot(data = dc_fall_w, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Windowpane")
+w_plot_f
+
+### GAM
+dc_fall_w <- filter(dc_fall, svspp == 'Windowpane')
+dc_fall_w$z_bt <- (dc_fall_w$bt - mean(dc_fall_w$bt))/(dc_fall_w$bt_sd)
+mod30 <- gam(cb ~ s(year) + s(z_bt), data=dc_fall_w, family = 'gaussian')
+summary(mod30)
+mod30$aic
+plot(mod30, pages=1, scheme=1, unconditional=TRUE, main = "Windowpane")
+gam.check(mod30)
+
+## Buckler Dory
+### GLM
+dc_fall_b.d <- filter(dc_fall, svspp == 'Buckler.Dory')
+b.d_plot_f <- ggplot(data = dc_fall_b.d, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Buckler Dory")
+b.d_plot_f
+
+### GAM
+dc_fall_b.d <- filter(dc_fall, svspp == 'Buckler.Dory')
+dc_fall_b.d$z_bt <- (dc_fall_b.d$bt - mean(dc_fall_b.d$bt))/(dc_fall_b.d$bt_sd)
+mod31 <- gam(cb ~ s(year), data=dc_fall_b.d, family = 'gaussian')
+mod31.a <- gam(cb ~ s(z_bt), data=dc_fall_b.d, family = 'gaussian')
+summary(mod31)
+summary(mod31.a)
+mod31$aic
+mod31.a$aic
+plot(mod31, pages=1, scheme=1, unconditional=TRUE, main = "Buckler Dory")
+plot(mod31.a, pages=1, scheme=1, unconditional=TRUE, main = "Buckler Dory")
+gam.check(mod14)
+gam.check(mod14.a)
+
+## Blue Fish
+### GLM
+dc_fall_b.f <- filter(dc_fall, svspp == 'Buckler.Dory')
+b.f_plot_f <- ggplot(data = dc_fall_b.f, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Blue Fish")
+b.f_plot_f
+
+### GAM
+dc_fall_b.f <- filter(dc_fall, svspp == 'Blue.Fish')
+dc_fall_b.f$z_bt <- (dc_fall_b.f$bt - mean(dc_fall_b.f$bt))/(dc_fall_b.f$bt_sd)
+mod32 <- gam(cb ~ s(year), data=dc_fall_b.f, family = 'gaussian')
+mod32.a <- gam(cb ~ s(z_bt), data=dc_fall_b.f, family = 'gaussian')
+summary(mod32)
+summary(mod32.a)
+mod32$aic
+mod32.a$aic
+plot(mod32, pages=1, scheme=1, unconditional=TRUE, main = "Blue Fish")
+plot(mod32.a, pages=1, scheme=1, unconditional=TRUE, main = "Blue Fish")
+gam.check(mod32)
+gam.check(mod32.a)
+
+## Longhorn Sculpin
+### GLM
+dc_fall_l.s <- filter(dc_fall, svspp == 'Longhorn.Sculpin')
+l.s_plot_f <- ggplot(data = dc_fall_l.s, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Longhorn Sculpin")
+l.s_plot_f
+
+### GAM
+dc_fall_l.s <- filter(dc_fall, svspp == 'Longhorn.Sculpin')
+dc_fall_l.s$z_bt <- (dc_fall_l.s$bt - mean(dc_fall_l.s$bt))/(dc_fall_l.s$bt_sd)
+mod33 <- gam(cb ~ s(year) + s(z_bt), data=dc_fall_l.s, family = 'gaussian')
+summary(mod33)
+mod33$aic
+plot(mod33, pages=1, scheme=1, unconditional=TRUE, main = "Longhorn Sculpin")
+gam.check(mod33)
+
+## Striped Searobin
+### GLM
+dc_fall_s.s <- filter(dc_fall, svspp == 'Striped.Searobin')
+s.s_plot_f <- ggplot(data = dc_fall_s.s, aes(x = year, y = cb)) +
+  geom_point(color = "black", size = 1) +
+  ecodata::geom_gls() +
+  theme_bw() +
+  theme(plot.title = element_text(size = 13)) +
+  xlab("Year") +
+  ylab("log(Consumption:Biomass)") +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 10),
+        axis.title.x=element_text(size = 10)) +
+  ggtitle("Striped Searobin")
+s.s_plot_f
+
+### GAM
+dc_fall_s.s <- filter(dc_fall, svspp == 'Striped.Searobin')
+dc_fall_s.s$z_bt <- (dc_fall_s.s$bt - mean(dc_fall_s.s$bt))/(dc_fall_s.s$bt_sd)
+mod34 <- gam(cb ~ s(year), data=dc_fall_s.s, family = 'gaussian')
+mod34.a <- gam(cb ~ s(bt), data=dc_fall_s.s, family = 'gaussian')
+summary(mod34)
+summary(mod34.a)
+mod34$aic
+mod34.a$aic
+plot(mod34, pages=1, scheme=1, unconditional=TRUE, main = "Striped Searobin")
+plot(mod34.a, pages=1, scheme=1, unconditional=TRUE, main = "Striped Searobin")
+gam.check(mod34)
+gam.check(mod34.a)
+```
+
+## GLM Outputs for fall
+```{r, echo=FALSE, out.width='100%', fig.height=6}
+# Combining all of the GLMs into one figure for comparison purposes
+glm_cb_f <- ggarrange(s.d_plot_f, w.s_plot_f, p_plot_f, w.h_plot_f, r.h_plot_f,g_plot_f, t.s_plot_f, a.c_plot_f, s.r_plot_f, s.h_plot_f,s.f_plot_f, f.f_plot_f, w_plot_f, b.d_plot_f, b.f_plot_f,l.s_plot_f, s.s_plot_f, ncol = 5, nrow = 4)
+glm_cb_f
+```
+
+\vspace{0.25cm}
+
+## GAM Outputs for Fall
+
+```{r, echo=FALSE, out.width='100%', fig.height=6}
+# Comparing GAMs side by side for all species of trends in consumption:biomass ratios:
+par(mfrow=c(3,3))
+mod18 <- gam(cb ~ s(year), data=dc_fall_s.d, family = 'gaussian')
+plot(mod18, scheme=1, unconditional=TRUE, main = "Spiny Dogfish") 
+mod19 <- gam(cb ~ s(year), data=dc_fall_w.s, family = 'gaussian')
+plot(mod19, scheme=1, unconditional=TRUE, main = "Winter Skate") 
+mod20 <- gam(cb ~ s(year), data=dc_fall_p, family = 'gaussian')
+plot(mod20, scheme=1, unconditional=TRUE, main = "Pollock") 
+mod21 <- gam(cb ~ s(year), data=dc_fall_w.h, family = 'gaussian')
+plot(mod21, scheme=1, unconditional=TRUE, main = "White Hake")
+mod22 <- gam(cb ~ s(year), data=dc_fall_r.h, family = 'gaussian')
+plot(mod22, scheme=1, unconditional=TRUE, main = "Red Hake")
+mod23 <- gam(cb ~ s(year), data=dc_fall_g, family = 'gaussian')
+plot(mod23, scheme=1, unconditional=TRUE, main = "Goosefish")
+mod24 <- gam(cb ~ s(year), data=dc_fall_t.s, family = 'gaussian')
+plot(mod24, scheme=1, unconditional=TRUE, main = "Thorny Skate")
+mod25 <- gam(cb ~ s(year), data=dc_fall_a.c, family = 'gaussian')
+plot(mod25, scheme=1, unconditional=TRUE, main = "Atlantic Cod")
+mod26 <- gam(cb ~ s(year), data=dc_fall_s.r, family = 'gaussian')
+plot(mod26, scheme=1, unconditional=TRUE, main = "Sea Raven")
+mod27 <- gam(cb ~ s(year), data=dc_fall_s.h, family = 'gaussian')
+plot(mod27, scheme=1, unconditional=TRUE, main = "Silver Hake")
+mod28 <- gam(cb ~ s(year), data=dc_fall_s.f, family = 'gaussian')
+plot(mod28, scheme=1, unconditional=TRUE, main = "Summer Flounder")
+mod29 <- gam(cb ~ s(year), data=dc_fall_f.f, family = 'gaussian')
+plot(mod29, scheme=1, unconditional=TRUE, main = "Fourspot Flounder")
+mod30 <- gam(cb ~ s(year), data=dc_fall_w, family = 'gaussian')
+plot(mod30, scheme=1, unconditional=TRUE, main = "Windowpane")
+mod31 <- gam(cb ~ s(year), data=dc_fall_b.d, family = 'gaussian')
+plot(mod31, scheme=1, unconditional=TRUE, main = "Buckler Dory")
+mod32 <- gam(cb ~ s(year), data=dc_fall_b.f, family = 'gaussian')
+plot(mod32, scheme=1, unconditional=TRUE, main = "Blue Fish")
+mod33 <- gam(cb ~ s(year), data=dc_fall_l.s, family = 'gaussian')
+plot(mod33, scheme=1, unconditional=TRUE, main = "Longhorn Sculpin")
+mod34 <- gam(cb ~ s(year), data=dc_fall_s.s, family = 'gaussian')
+plot(mod34, scheme = 1, unconditional=TRUE, main = "Striped Searobin")
+
+## GAM of bt v. cb --> same note as above
+par(mfrow = c(3,3))
+mod18 <- gam(cb ~ s(bt), data=dc_spring_s.d, family = 'gaussian')
+plot(mod18, scheme=1, unconditional=TRUE, main = "Spiny Dogfish")
+mod19 <- gam(cb ~ s(bt), data=dc_spring_w.s, family = 'gaussian')
+plot(mod19, scheme=1, unconditional=TRUE, main = "Winter Skate")
+mod20 <- gam(cb ~ s(bt), data=dc_spring_p, family = 'gaussian')
+plot(mod20, scheme=1, unconditional=TRUE, main = "Pollock")
+mod21 <- gam(cb ~ s(bt), data=dc_spring_w.h, family = 'gaussian')
+plot(mod21, scheme=1, unconditional=TRUE, main = "White Hake")
+mod22 <- gam(cb ~ s(bt), data=dc_spring_r.h, family = 'gaussian')
+plot(mod22, scheme=1, unconditional=TRUE, main = " Red Hake")
+mod23 <- gam(cb ~ s(bt), data=dc_spring_g, family = 'gaussian')
+plot(mod23, scheme=1, unconditional=TRUE, main = "Goosefish")
+mod24 <- gam(cb ~ s(bt), data=dc_spring_t.s, family = 'gaussian')
+plot(mod24, scheme=1, unconditional=TRUE, main = "Thorny Skate")
+mod25 <- gam(cb ~ s(bt), data=dc_spring_a.c, family = 'gaussian')
+plot(mod25, scheme=1, unconditional=TRUE, main = "Atlantic Cod")
+mod26 <- gam(cb ~ s(bt), data=dc_spring_s.r, family = 'gaussian')
+plot(mod26, scheme=1, unconditional=TRUE, main = "Sea Raven")
+mod27 <- gam(cb ~ s(bt), data=dc_spring_s.h, family = 'gaussian')
+plot(mod27, scheme=1, unconditional=TRUE, main = "Silver Hake")
+mod28 <- gam(cb ~ s(bt), data=dc_spring_s.f, family = 'gaussian')
+plot(mod28, scheme=1, unconditional=TRUE, main = "Summer Flounder")
+mod29 <- gam(cb ~ s(bt), data=dc_spring_f.f, family = 'gaussian')
+plot(mod29, scheme=1, unconditional=TRUE, main = "Fourspot Flounder")
+mod30 <- gam(cb ~ s(bt), data=dc_spring_w, family = 'gaussian')
+plot(mod30, scheme=1, unconditional=TRUE, main = "Windowpane")
+mod31 <- gam(cb ~ s(bt) , data=dc_spring_b.d, family = 'gaussian')
+plot(mod31, scheme=1, unconditional=TRUE, main = "Buckler Dory")
+mod32 <- gam(cb ~ s(bt), data=dc_spring_b.f, family = 'gaussian')
+plot(mod32, scheme=1, unconditional=TRUE, main = "Blue Fish")
+mod33 <- gam(cb ~ s(z_bt), data=dc_spring_l.s, family = 'gaussian')
+plot(mod33, scheme=1, unconditional=TRUE, main = "Longhorn Sculpin")
+mod34 <- gam(cb ~ s(z_bt), data=dc_spring_s.s, family = 'gaussian')
+plot(mod34, scheme = 1, unconditional=TRUE, main = "Striped Searobin")
+```
+
+\vspace{0.25cm}
+
+## Looking at bottom temperature trends
+
+```{r, echo=FALSE}
+# Filtering data to examine bottom temperature trends
+dc_temp <- data_comb %>% 
+  select('year','bt') %>% 
+  na.omit('year','bt')
+```
+
+\vspace{0.25cm}
+
+### Bottom temperature trend across fall + spring combined:
+
+```{r, echo=FALSE, out.width='100%', fig.height=6}
+bt_plot <- ggplot(data = dc_temp, 
+       aes(x = year, y = bt)) +
+  geom_point(color = "black", size = 1) +
+  geom_smooth(method = lm, color = "purple2", linewidth = 2) +
+  theme_bw() +
+  theme(plot.title = element_text(size = 15)) +
+  xlab("Year") +
+  ylab("Bottom Temperature") +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 13),
+        axis.title.x=element_text(size = 13)) +
+  ggtitle("Bottom Temperature Over Time")
+bt_plot
+```
+
+
+### Bottom temperature trend across fall:
+
+```{r, echo=FALSE, out.width='100%', fig.height=6}
+bt_fall_plot <- ggplot(data = dc_fall, 
+                  aes(x = year, y = bt)) +
+  geom_point(color = "black", size = 1) +
+  geom_smooth(method = lm, color = "purple2", linewidth = 2, se = FALSE) +
+  theme_bw() +
+  theme(plot.title = element_text(size = 15)) +
+  xlab("Year") +
+  ylab("Bottom Temperature") +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 13),
+        axis.title.x=element_text(size = 13)) +
+  ggtitle("Fall Bottom Temperature Over Time")
+bt_fall_plot
+```
+
+### Bottom temperature trend across spring:
+
+```{r, echo=FALSE, out.width='100%', fig.height=6}
+dc_spring <- filter(data_comb_f, seacat == 'SPRING')
+
+bt_spring_plot <- ggplot(data = dc_spring, 
+                       aes(x = year, y = bt)) +
+  geom_point(color = "black", size = 1) +
+  geom_smooth(method = lm, color = "purple2", linewidth = 2, se = FALSE) +
+  theme_bw() +
+  theme(plot.title = element_text(size = 15)) +
+  xlab("Year") +
+  ylab("Bottom Temperature") +
+  theme(axis.text.x=element_text(size=10), 
+        axis.text.y = element_text(size=10),
+        axis.title.y=element_text(size = 13),
+        axis.title.x=element_text(size = 13)) +
+  ggtitle("Spring Bottom Temperature Over Time")
+bt_spring_plot
+```

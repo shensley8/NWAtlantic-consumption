@@ -1,0 +1,162 @@
+---
+title: "Exploratory Analysis 1"
+author: "Sarah Hensley"
+date: "2024-02-01"
+output: html_document
+---
+
+```{r, echo=FALSE, message=FALSE}
+# loading libraries
+library(mgcv)
+library(here)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(readr)
+
+# loading in the data
+here()
+setwd("C:/Users/hensl/Downloads/NOAA IN FISH! Internship/IN FISH Woods Hole Project")
+data_comb <- read.csv("GAM Data/updated cb ratios.csv")
+
+# renaming species codes
+data_comb$svspp[data_comb$svspp == 15] <- 'Spiny.Dogfish'
+data_comb$svspp[data_comb$svspp == 23] <- 'Winter.Skate'
+data_comb$svspp[data_comb$svspp == 75] <- 'Pollock'
+data_comb$svspp[data_comb$svspp == 76] <- 'White.Hake'
+data_comb$svspp[data_comb$svspp == 77] <- 'Red.Hake'
+data_comb$svspp[data_comb$svspp == 197] <- 'Goosefish'
+data_comb$svspp[data_comb$svspp == 28] <- 'Thorny.Skate'
+data_comb$svspp[data_comb$svspp == 73] <- 'Atlantic.Cod'
+data_comb$svspp[data_comb$svspp == 164] <- 'Sea.Raven'
+data_comb$svspp[data_comb$svspp == 72] <- 'Silver.Hake'
+data_comb$svspp[data_comb$svspp == 103] <- 'Summer.Flounder'
+data_comb$svspp[data_comb$svspp == 104] <- 'Fourspot.Flounder'
+data_comb$svspp[data_comb$svspp == 108] <- 'Windowpane'
+data_comb$svspp[data_comb$svspp == 112] <- 'Buckler.Dory'
+data_comb$svspp[data_comb$svspp == 135] <- 'Blue.Fish'
+data_comb$svspp[data_comb$svspp == 163] <- 'Longhorn.Sculpin'
+data_comb$svspp[data_comb$svspp == 172] <- 'Striped.Searobin'
+
+# omitting all NA's
+data_comb_f <- data_comb %>% na.omit(cb)
+```
+
+Filtering through the data as requested: transforming c:b ratios on a log scale, starting time series in 1981, and removing 0 c:b values
+
+```{r}
+# omitting all 0's from the dataset
+rows_to_keep <- data_comb_f$cb > 0.000000000
+data_comb_f2 <- data_comb_f[rows_to_keep, ]
+
+# starting time series in 1981 for sensitivity analysis
+data_comb_f2 <- data_comb_f %>% 
+  filter(year > 1980)
+
+# log transforming c:b ratios 
+data_comb_f2$cb <- log(data_comb_f2$cb)
+```
+
+FILTERED VERSION: Breaking the above plots into a legible format by species, to assess species specific prey consumption over time
+
+```{r, out.width='100%', fig.height=6, echo=FALSE}
+# Get unique levels of svspp
+svspp_levels <- unique(data_comb_f2$svspp)
+
+# Create a list to store plots
+dist_plots_list <- list()
+
+# Loop through svspp levels
+for (svspp_level in svspp_levels) {
+  # Filter data for the current svspp level
+  filtered_data <- data_comb_f2 %>%
+    filter(svspp == svspp_level)
+
+  # Create the plot
+  dist_plot <- ggplot(filtered_data, aes(x = year, y = cb, fill = prey)) +
+    geom_point(stat = 'identity') +
+    geom_smooth(method = lm, aes(color = prey), linewidth = 1, se = FALSE) +
+    xlab("Time (Years)") +
+    ylab("log(Consumption:Biomass Ratios)") + 
+    facet_wrap(~prey + seacat, scales = "free") +
+    scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+    theme_bw() +
+    theme(plot.title = element_text(size = 15)) +
+    theme(axis.text.x = element_text(size = 10), 
+          axis.text.y = element_text(size = 10),
+          axis.title.y = element_text(size = 13),
+          axis.title.x = element_text(size = 13)) +
+    ggtitle(paste("Consumption:Biomass Over Time for", svspp_level))
+
+  # Add the plot to the list
+  dist_plots_list[[svspp_level]] <- dist_plot
+}
+
+# Print the plots
+for (dist_plot in dist_plots_list) {
+  print(dist_plot)
+}
+
+```
+
+FILTERED VERSION: Doing this same kind of analysis but looking at how the values compare with bottom temperature
+
+```{r, out.width='100%', fig.height=7, echo=FALSE}
+# Get unique levels of svspp
+svspp_levels <- unique(data_comb_f2$svspp)
+
+# Create a list to store plots
+dist_plots_list <- list()
+
+# Loop through svspp levels
+for (svspp_level in svspp_levels) {
+  # Filter data for the current svspp level
+  filtered_data <- data_comb_f2 %>%
+    filter(svspp == svspp_level)
+
+  # Create the plot
+  dist_plot <- ggplot(filtered_data, aes(x = bt, y = cb, fill = prey)) +
+    geom_point(stat = 'identity') +
+    geom_smooth(method = lm, aes(color = prey), linewidth = 1, se = FALSE) +
+    xlab("Bottom Temperature (C)") +
+    ylab("log(Consumption:Biomass Ratios)") + 
+    facet_wrap(~prey + seacat, scales = "free") +
+    theme_bw() +
+    theme(plot.title = element_text(size = 15)) +
+    theme(axis.text.x = element_text(size = 10), 
+          axis.text.y = element_text(size = 10),
+          axis.title.y = element_text(size = 13),
+          axis.title.x = element_text(size = 13)) +
+    ggtitle(paste("Consumption:Biomass v. Bottom Temperature for", svspp_level))
+
+  # Add the plot to the list
+  dist_plots_list[[svspp_level]] <- dist_plot
+}
+
+# Print the plots
+for (dist_plot in dist_plots_list) {
+  print(dist_plot)
+}
+
+```
+
+## Bottom Temperature Overview
+```{r, out.width='100%', fig.height=6, echo=FALSE}
+dist_plot <- ggplot(data_comb_f2, aes(x = year, y = bt, fill = prey)) +
+    geom_point(stat = 'identity') +
+    geom_smooth(method = lm, aes(color = prey), linewidth = 1, se = FALSE) +
+    xlab("Time (Years)") +
+    ylab("Bottom Temperature (C)") + 
+    facet_wrap(~prey + seacat, scales = "free") +
+    theme_bw() +
+    theme(plot.title = element_text(size = 15)) +
+    theme(axis.text.x = element_text(size = 10), 
+          axis.text.y = element_text(size = 10),
+          axis.title.y = element_text(size = 13),
+          axis.title.x = element_text(size = 13)) +
+    ggtitle(paste("Bottom Temperature Through Time"))
+dist_plot
+```
+
+
+
