@@ -23,8 +23,7 @@ library(patchwork)
 
 # loading in the data
 here()
-setwd("C:/Users/hensl/Downloads/NOAA IN FISH! Internship/IN FISH Woods Hole Project")
-data_comb <- read.csv("GAM Data/updated cb ratios.csv")
+data_comb <- read.csv("data/updated cb ratios.csv")
 
 # renaming species codes
 data_comb$svspp[data_comb$svspp == 15] <- 'Spiny.Dogfish'
@@ -47,6 +46,10 @@ data_comb$svspp[data_comb$svspp == 172] <- 'Striped.Searobin'
 
 # omitting all NA's
 data_comb_f <- data_comb %>% na.omit(cb)
+
+# omitting true zeros
+data_comb_f <- data_comb_f %>% 
+  filter(CMT > 0.000000e+00)
 ```
 
 ### Looking at Consumption vs Biomass Over Time Across Predator, Prey and Seasons
