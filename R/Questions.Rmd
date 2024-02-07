@@ -1,0 +1,17 @@
+---
+title: "Questions"
+author: "Sarah Hensley"
+date: "2024-02-06"
+output: html_document
+---
+# Consumption over Time v. Biomass over Time Analysis:
+## These are some questions that I have been coming across:
+1. For Blue Fish there is only one sample taken in spring throughout the whole time series; what should we do with this?
+2. White Hake  each have one outlier in spring (1981 C, 1990 B) and fall (1982 C, 1980 B) in their consumption and biomass. Are these related/how do I deal with these outlier points?
+3. Similar thing in Pollock around a similar time frame
+4. Similar thing in Thorny Skate in similar time frame
+
+## Here is a running list of species that have near 0 biomass estimates at a minimum of one point in time in the time series:
+- Goosefish (spring)
+
+#
