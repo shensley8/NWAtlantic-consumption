@@ -10,12 +10,14 @@ output: html_document
 library(MARSS)
 library(ggplot2)
 library(here)
+library(dplyr)
+library(tibble)
 ```
 
 ```{r}
 # loading in the data
-# loading in the data
 here()
+setwd("C:/Users/hensl/OneDrive/Documents/Winter Quarter 2024/NWAtlantic-consumption")
 data_comb <- read.csv("data/mCa4.csv")
 
 # renaming species codes
@@ -38,15 +40,20 @@ data_comb$svspp[data_comb$svspp == 163] <- 'Longhorn.Sculpin'
 data_comb$svspp[data_comb$svspp == 172] <- 'Striped.Searobin'
 
 # omitting all NA's
-data_comb_f <- data_comb %>% na.omit(mean.cb)
+# data_comb_f <- data_comb %>% na.omit(mean.cb)
+
+# change all zeros to NA
+data_comb$mean.cb[data_comb$mean.cb == 0] <- NA
+
+data_comb_f <- data_comb
 
 # omitting all true zeros
-data_comb_f <- data_comb_f %>% 
-  filter(CMT > 0.000000e+00)
+#data_comb_f <- data_comb_f %>% 
+#  filter(CMT > 0.000000e+00)
 ```
 
 ```{r}
-# trying this for total consumption first for spring
+# trying random walk model for mean consumption:biomass first for spring (does not produce CIs)
 # getting data into a format that I can test it in
 d_mar <- data_comb_f %>% 
   select(c(svspp, prey, year, seacat, mean.cb))
@@ -101,6 +108,213 @@ combined_total <- combined_total[,-1]
 # transposing the data
 combined_total <- t(combined_total)
 
+# breaking data up by predator
+# attempting to do use a random walk time series analysis approach with the data
+## setting up MARSS model for SST
+B = "identity"
+
+U = "unequal"
+
+Q = "diagonal and unequal"
+
+Z = "identity"
+
+A = "zero"
+
+R = "zero"
+
+C = "zero"
+
+c = "zero"
+
+x0 <- "unequal"
+
+mod_list<-list(
+  B = B, U = U, Q = Q, Z = Z, A = A, R = R, 
+  C = C, c=c, x0 = x0
+)
+
+dat <- as.matrix(combined_total)
+
+# fitting the model
+mod_fit <- MARSS(y=dat, model = mod_list, method = "kem")
+
+# calculating confidence intervals
+model_CIs <- MARSSparamCIs(mod_fit, method = "hessian", alpha = 0.05, silent = TRUE, hessian.fun = "Harvey1989")
+
+CI_up <- c(model_CIs$par.upCI$U)
+CI_low <- c(model_CIs$par.lowCI$U)
+
+as.data.frame(model_CIs$parMean) -> MARSS_param_est
+
+MARSS_param_est$uppCI_sst_up <- CI_up
+MARSS_param_est$lowCI_sst_up <- CI_low
+
+MARSS_param_est <- MARSS_param_est %>% 
+  rownames_to_column(var = "parameters") %>% 
+  rename(mean_sst_up = `model_CIs$parMean`)
+MARSS_param_est
+```
+
+```{r}
+# trying random walk model for mean consumption:biomass first for fall (does produce CIs)
+# getting data into a format that I can test it in
+d_mar <- data_comb_f %>% 
+  select(c(svspp, prey, year, seacat, mean.cb))
+
+# parsing the different groups out so that I can combine them correctly
+d_mar_ALL <- d_mar %>% 
+  filter(prey == "all" & seacat == "FALL")
+
+# setting up for loop that will output all of the predators in their own dataframe including only mean.cb and year
+## Get unique levels of svspp
+svspp_levels <- unique(d_mar_ALL$svspp)
+
+## Loop through svspp levels
+for (svspp_level in svspp_levels){
+df_svspp_level <- d_mar_ALL %>% 
+  filter(svspp == svspp_level) %>% 
+  select(year, mean.cb) %>%
+  rename(!!paste0(svspp_level, "_mean.cb") := mean.cb)
+
+## Generate a unique name for the dataframe
+  df_name <- paste("df_", svspp_level, sep = "")
+  
+## Assign the dataframe to the unique name
+  assign(df_name, df_svspp_level)
+}
+
+# combining all of the dataframes
+combined_total <- df_Spiny.Dogfish %>%   
+  left_join(df_Winter.Skate, by = "year") %>% 
+  left_join(df_Pollock, by = "year") %>%
+  left_join(df_White.Hake, by = "year") %>% 
+  left_join(df_Red.Hake, by = "year") %>%
+  left_join(df_Goosefish, by = "year") %>% 
+  left_join(df_Thorny.Skate, by = "year") %>% 
+  left_join(df_Atlantic.Cod, by = "year") %>%
+  left_join(df_Sea.Raven, by = "year") %>% 
+  left_join(df_Silver.Hake, by = "year") %>%
+  left_join(df_Summer.Flounder, by = "year") %>% 
+  left_join(df_Fourspot.Flounder, by = "year") %>% 
+  left_join(df_Windowpane, by = "year") %>%
+  left_join(df_Buckler.Dory, by = "year") %>% 
+  left_join(df_Blue.Fish, by = "year") %>%
+  left_join(df_Longhorn.Sculpin, by = "year") %>% 
+  left_join(df_Striped.Searobin, by = "year") 
+
+# assigning very first index column the years
+rownames(combined_total) <- combined_total[,1 ]
+
+# removing the year column
+combined_total <- combined_total[,-1]
+
+# transposing the data
+combined_total <- t(combined_total)
+
+# breaking data up by predator
+# attempting to do use a random walk time series analysis approach with the data
+## setting up MARSS model for SST
+B = "identity"
+
+U = "unequal"
+
+Q = "diagonal and unequal"
+
+Z = "identity"
+
+A = "zero"
+
+R = "zero"
+
+C = "zero"
+
+c = "zero"
+
+x0 <- "unequal"
+
+mod_list<-list(
+  B = B, U = U, Q = Q, Z = Z, A = A, R = R, 
+  C = C, c=c, x0 = x0
+)
+
+dat <- as.matrix(combined_total)
+
+# fitting the model
+mod_fit <- MARSS(y=dat, model = mod_list, method = "kem")
+
+# calculating confidence intervals
+model_CIs <- MARSSparamCIs(mod_fit, method = "hessian", alpha = 0.05, nboot = 1000, silent = TRUE, hessian.fun = "Harvey1989")
+
+CI_up <- c(model_CIs$par.upCI$U)
+CI_low <- c(model_CIs$par.lowCI$U)
+
+as.data.frame(model_CIs$parMean) -> MARSS_param_est
+
+MARSS_param_est$uppCI_sst_up <- CI_up
+MARSS_param_est$lowCI_sst_up <- CI_low
+
+MARSS_param_est <- MARSS_param_est %>% 
+  rownames_to_column(var = "parameters") %>% 
+  rename(mean_sst_up = `model_CIs$parMean`)
+MARSS_param_est
+```
+
+```{r}
+# trying this for CMT next for spring (won't run: Stopped in MARSS() before fitting because MARSSkem returned errors.)
+# getting data into a format that I can test it in
+d_mar <- data_comb_f %>% 
+  select(c(svspp, prey, year, seacat, CMT))
+
+# parsing the different groups out so that I can combine them correctly
+d_mar_ALL <- d_mar %>% 
+  filter(prey == "all" & seacat == "SPRING")
+
+# setting up for loop that will output all of the predators in their own dataframe including only mean.cb and year
+## Get unique levels of svspp
+svspp_levels <- unique(d_mar_ALL$svspp)
+
+## Loop through svspp levels
+for (svspp_level in svspp_levels){
+df_svspp_level <- d_mar_ALL %>% 
+  filter(svspp == svspp_level) %>% 
+  select(year, CMT) %>%
+  rename(!!paste0(svspp_level, "_CMT") := CMT)
+
+## Generate a unique name for the dataframe
+  df_name <- paste("df_", svspp_level, sep = "")
+  
+## Assign the dataframe to the unique name
+  assign(df_name, df_svspp_level)
+}
+
+# combining all of the dataframes
+combined_total <- df_Spiny.Dogfish %>%   
+  left_join(df_Winter.Skate, by = "year") %>% 
+  left_join(df_Pollock, by = "year") %>%
+  left_join(df_White.Hake, by = "year") %>% 
+  left_join(df_Red.Hake, by = "year") %>%
+  left_join(df_Goosefish, by = "year") %>% 
+  left_join(df_Thorny.Skate, by = "year") %>% 
+  left_join(df_Atlantic.Cod, by = "year") %>%
+  left_join(df_Sea.Raven, by = "year") %>% 
+  left_join(df_Silver.Hake, by = "year") %>%
+  left_join(df_Summer.Flounder, by = "year") %>% 
+  left_join(df_Fourspot.Flounder, by = "year") %>% 
+  left_join(df_Windowpane, by = "year") %>%
+  left_join(df_Buckler.Dory, by = "year") %>% 
+  left_join(df_Blue.Fish, by = "year") %>%
+  left_join(df_Longhorn.Sculpin, by = "year") %>% 
+  left_join(df_Striped.Searobin, by = "year") 
+
+# assigning very first index column the years
+rownames(combined_total) <- combined_total[,1 ]
+
+# removing the year column
+combined_total <- combined_total[,-1]
+
+# transposing the data
+combined_total <- t(combined_total)
 
 # breaking data up by predator
 # attempting to do use a random walk time series analysis approach with the data
@@ -136,7 +350,222 @@ mod_fit <- MARSS(y=dat, model = mod_list, method = "kem")
 # calculating confidence intervals
 model_CIs <- MARSSparamCIs(mod_fit, method = "hessian", alpha = 0.05, nboot =
                                          1000, silent = TRUE, hessian.fun = "Harvey1989")
+
+CI_up <- c(model_CIs$par.upCI$U)
+CI_low <- c(model_CIs$par.lowCI$U)
+
+as.data.frame(model_CIs$parMean) -> MARSS_param_est
+
+MARSS_param_est$uppCI_sst_up <- CI_up
+MARSS_param_est$lowCI_sst_up <- CI_low
+
+MARSS_param_est <- MARSS_param_est %>% 
+  rownames_to_column(var = "parameters") %>% 
+  rename(mean_sst_up = `model_CIs$parMean`)
+MARSS_param_est
 ```
+
+```{r}
+# trying dynamic factor analysis for CMT for fall (doesn't run at all: Stopped in MARSS() before fitting because MARSSkem returned errors)
+# getting data into a format that I can test it in
+d_mar <- data_comb_f %>% 
+  select(c(svspp, prey, year, seacat, CMT))
+
+# parsing the different groups out so that I can combine them correctly
+d_mar_ALL <- d_mar %>% 
+  filter(prey == "all" & seacat == "FALL")
+
+# setting up for loop that will output all of the predators in their own dataframe including only mean.cb and year
+## Get unique levels of svspp
+svspp_levels <- unique(d_mar_ALL$svspp)
+
+## Loop through svspp levels
+for (svspp_level in svspp_levels){
+df_svspp_level <- d_mar_ALL %>% 
+  filter(svspp == svspp_level) %>% 
+  select(year, CMT) %>%
+  rename(!!paste0(svspp_level, "_CMT") := CMT)
+
+## Generate a unique name for the dataframe
+  df_name <- paste("df_", svspp_level, sep = "")
+  
+## Assign the dataframe to the unique name
+  assign(df_name, df_svspp_level)
+}
+
+# combining all of the dataframes
+combined_total <- df_Spiny.Dogfish %>%   
+  left_join(df_Winter.Skate, by = "year") %>% 
+  left_join(df_Pollock, by = "year") %>%
+  left_join(df_White.Hake, by = "year") %>% 
+  left_join(df_Red.Hake, by = "year") %>%
+  left_join(df_Goosefish, by = "year") %>% 
+  left_join(df_Thorny.Skate, by = "year") %>% 
+  left_join(df_Atlantic.Cod, by = "year") %>%
+  left_join(df_Sea.Raven, by = "year") %>% 
+  left_join(df_Silver.Hake, by = "year") %>%
+  left_join(df_Summer.Flounder, by = "year") %>% 
+  left_join(df_Fourspot.Flounder, by = "year") %>% 
+  left_join(df_Windowpane, by = "year") %>%
+  left_join(df_Buckler.Dory, by = "year") %>% 
+  left_join(df_Blue.Fish, by = "year") %>%
+  left_join(df_Longhorn.Sculpin, by = "year") %>% 
+  left_join(df_Striped.Searobin, by = "year") 
+
+# assigning very first index column the years
+rownames(combined_total) <- combined_total[,1 ]
+
+# removing the year column
+combined_total <- combined_total[,-1]
+
+# transposing the data
+combined_total <- t(combined_total)
+
+# breaking data up by predator
+# attempting to do use a random walk time series analysis approach with the data
+## setting up MARSS model for SST
+B = "identity"
+
+U = "zero"
+
+Q = "diagonal and unequal"
+
+Z = "identity"
+
+A = "zero"
+
+R = "zero"
+
+C = "zero"
+
+c = "zero"
+
+x0 <- "unequal"
+
+tinitx = 0
+
+mod_list<-list(
+  B = B, U = U, Q = Q, Z = Z, A = A, R = R, 
+  C = C, c=c, x0 = x0
+)
+
+dat <- as.matrix(combined_total)
+
+# fitting the model
+mod_fit <- MARSS(y=dat, model = mod_list, method = "kem")
+
+# calculating confidence intervals
+model_CIs <- MARSSparamCIs(mod_fit, method = "hessian", alpha = 0.05, nboot =
+                                         1000, silent = TRUE, hessian.fun = "Harvey1989")
+
+CI_up <- c(model_CIs$par.upCI$U)
+CI_low <- c(model_CIs$par.lowCI$U)
+
+as.data.frame(model_CIs$parMean) -> MARSS_param_est
+
+MARSS_param_est$uppCI_sst_up <- CI_up
+MARSS_param_est$lowCI_sst_up <- CI_low
+
+MARSS_param_est <- MARSS_param_est %>% 
+  rownames_to_column(var = "parameters") %>% 
+  rename(mean_sst_up = `model_CIs$parMean`)
+MARSS_param_est
+```
+
+```{r}
+# trying dynamic factor analysis for CMT for fall
+# getting data into a format that I can test it in
+d_mar <- data_comb_f %>% 
+  select(c(svspp, prey, year, seacat, CMT))
+
+# parsing the different groups out so that I can combine them correctly
+d_mar_ALL <- d_mar %>% 
+  filter(prey == "all" & seacat == "FALL")
+
+# setting up for loop that will output all of the predators in their own dataframe including only mean.cb and year
+## Get unique levels of svspp
+svspp_levels <- unique(d_mar_ALL$svspp)
+
+## Loop through svspp levels
+for (svspp_level in svspp_levels){
+df_svspp_level <- d_mar_ALL %>% 
+  filter(svspp == svspp_level) %>% 
+  select(year, CMT) %>%
+  rename(!!paste0(svspp_level, "_CMT") := CMT)
+
+## Generate a unique name for the dataframe
+  df_name <- paste("df_", svspp_level, sep = "")
+  
+## Assign the dataframe to the unique name
+  assign(df_name, df_svspp_level)
+}
+
+# combining all of the dataframes
+combined_total <- df_Spiny.Dogfish %>%   
+  left_join(df_Winter.Skate, by = "year") %>% 
+  left_join(df_Pollock, by = "year") %>%
+  left_join(df_White.Hake, by = "year") %>% 
+  left_join(df_Red.Hake, by = "year") %>%
+  left_join(df_Goosefish, by = "year") %>% 
+  left_join(df_Thorny.Skate, by = "year") %>% 
+  left_join(df_Atlantic.Cod, by = "year") %>%
+  left_join(df_Sea.Raven, by = "year") %>% 
+  left_join(df_Silver.Hake, by = "year") %>%
+  left_join(df_Summer.Flounder, by = "year") %>% 
+  left_join(df_Fourspot.Flounder, by = "year") %>% 
+  left_join(df_Windowpane, by = "year") %>%
+  left_join(df_Buckler.Dory, by = "year") %>% 
+  left_join(df_Blue.Fish, by = "year") %>%
+  left_join(df_Longhorn.Sculpin, by = "year") %>% 
+  left_join(df_Striped.Searobin, by = "year") 
+
+# assigning very first index column the years
+rownames(combined_total) <- combined_total[,1 ]
+
+# removing the year column
+combined_total <- combined_total[,-1]
+
+# transposing the data
+combined_total <- t(combined_total)
+
+# breaking data up by predator
+# attempting to do use a random walk time series analysis approach with the data
+## setting up MARSS model for SST
+B = "identity"
+
+U = "zero"
+
+Q = "diagonal and unequal"
+
+Z = "identity"
+
+A = "zero"
+
+R = "zero"
+
+C = "zero"
+
+c = "zero"
+
+x0 <- "unequal"
+
+tinitx = 0
+
+mod_list<-list(
+  B = B, U = U, Q = Q, Z = Z, A = A, R = R, 
+  C = C, c=c, x0 = x0
+)
+
+dat <- as.matrix(combined_total)
+
+# fitting the model
+mod_fit <- MARSS(y=dat, model = NULL, method = "kem", form = "dfa", fun.kf = "MARSSkfas", demean = TRUE, z.score = TRUE)
+
+# calculating confidence intervals
+model_CIs <- MARSSparamCIs(mod_fit, method = "hessian", alpha = 0.05, nboot =
+                                         1000, silent = TRUE, hessian.fun = "Harvey1989")
+```
+
 
 ```{r}
 # looking at autocorrelations in the data to examine white noise
