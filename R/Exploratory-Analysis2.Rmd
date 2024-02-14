@@ -23,6 +23,7 @@ library(patchwork)
 
 # loading in the data
 here()
+setwd("C:/Users/hensl/OneDrive/Documents/Winter Quarter 2024/NWAtlantic-consumption")
 data_comb <- read.csv("data/updated cb ratios.csv")
 
 # renaming species codes
@@ -45,59 +46,111 @@ data_comb$svspp[data_comb$svspp == 163] <- 'Longhorn.Sculpin'
 data_comb$svspp[data_comb$svspp == 172] <- 'Striped.Searobin'
 
 # omitting all NA's
-data_comb_f <- data_comb %>% na.omit(cb)
+#data_comb_f <- data_comb %>% na.omit(cb)
 
 # omitting true zeros
+#data_comb_f <- data_comb_f %>% 
+#  filter(CMT > 0.000000e+00)
+
+# change all zeros to NA
+data_comb$CMT[data_comb$CMT == 0] <- NA
+data_comb$cb[data_comb$cb == 0] <- NA
+data_comb_f <- data_comb
+
+# converting CMT, biomass, and c:b to a log scale
 data_comb_f <- data_comb_f %>% 
-  filter(CMT > 0.000000e+00)
+  mutate(log_CMT = log(CMT), log_biompop = log(biompop), log_cb = log(cb)) 
+
+# reading in CI data
+cis <- read.csv("data/mCa4.csv")
+cis$lci.CMT[cis$lci.CMT == 0] <- NA
+cis$uci.CMT[cis$uci.CMT == 0] <- NA
+cis$lci.cb[cis$lci.cb == 0] <- NA
+cis$uci.cb[cis$uci.cb == 0] <- NA
+
+#log-ing CIs and getting rid of unnecessary columns to merge
+cis_f <- cis %>% 
+  select(-c(CMT, mean.cb, X)) %>% 
+   mutate(log_lci_CMT = log(lci.CMT), log_uci_CMT = log(uci.CMT), log_lci_cb = log(lci.cb), log_uci_cb = log(uci.cb)) 
+
+# converting svspp into character
+#cis_f$svspp <- as.character(cis_f$svspp)
+
+# renaming species codes for cis_f file
+cis_f$svspp[cis_f$svspp == 15] <- 'Spiny.Dogfish'
+cis_f$svspp[cis_f$svspp == 23] <- 'Winter.Skate'
+cis_f$svspp[cis_f$svspp == 75] <- 'Pollock'
+cis_f$svspp[cis_f$svspp == 76] <- 'White.Hake'
+cis_f$svspp[cis_f$svspp == 77] <- 'Red.Hake'
+cis_f$svspp[cis_f$svspp == 197] <- 'Goosefish'
+cis_f$svspp[cis_f$svspp == 28] <- 'Thorny.Skate'
+cis_f$svspp[cis_f$svspp == 73] <- 'Atlantic.Cod'
+cis_f$svspp[cis_f$svspp == 164] <- 'Sea.Raven'
+cis_f$svspp[cis_f$svspp == 72] <- 'Silver.Hake'
+cis_f$svspp[cis_f$svspp == 103] <- 'Summer.Flounder'
+cis_f$svspp[cis_f$svspp == 104] <- 'Fourspot.Flounder'
+cis_f$svspp[cis_f$svspp == 108] <- 'Windowpane'
+cis_f$svspp[cis_f$svspp == 112] <- 'Buckler.Dory'
+cis_f$svspp[cis_f$svspp == 135] <- 'Blue.Fish'
+cis_f$svspp[cis_f$svspp == 163] <- 'Longhorn.Sculpin'
+cis_f$svspp[cis_f$svspp == 172] <- 'Striped.Searobin'
+
+data_comb_f2 <- data_comb_f %>% 
+  select(c(-X)) %>% 
+  left_join(cis_f, by = c("svspp", "seacat", "year", "prey")) %>% 
+  select(-c(nctds, bt, bt_sd, abunpop, abunpop.sd, biompop.sd))
 ```
 
 ### Looking at Consumption vs Biomass Over Time Across Predator, Prey and Seasons
-```{r, out.width='100%', fig.height=6, echo=FALSE}
+```{r, out.width='100%', fig.height=15, echo=FALSE}
 # Create a list to store plots
 dist_plots_list <- list()
 
 # Get unique levels of svspp
-svspp_levels <- unique(data_comb_f$svspp)
+svspp_levels <- unique(data_comb_f2$svspp)
 
 # Loop through svspp levels
 for (svspp_level in svspp_levels) {
   # Filter data for the current svspp level
-  filtered_data <- data_comb_f %>%
+  filtered_data <- data_comb_f2 %>%
     filter(svspp == svspp_level)
 
   # Create the consumption plot
-  dist_plot_consumption <- ggplot(filtered_data, aes(x = year, y = CMT)) +
+  dist_plot_consumption <- ggplot(filtered_data, aes(x = year, y = log_CMT)) +
     geom_point(stat = 'identity') +
+    geom_errorbar(aes(ymin = log_lci_CMT, ymax = log_uci_CMT), 
+                width = 0.2, 
+                position = position_dodge(width = 0.2)) +
     geom_smooth(method = lm, aes(color = prey), linewidth = 1, se = FALSE) +
     xlab("Time (year)") +
-    ylab("Consumption (metric tons)") + 
-    facet_wrap(~prey + seacat, scales = "free") +
+    ylab("log(Consumption)") + 
+    facet_wrap(~prey + seacat, scales = "free", nrow = 8, ncol = 2) +
     scale_x_continuous(breaks = c(1980, 2000, 2020)) +
     theme(legend.position = "none") +
     guides(color = "none") +
     theme_bw() +
-    theme(plot.title = element_text(size = 15)) +
-    theme(axis.text.x = element_text(size = 10), 
+    theme(plot.title = element_text(size = 10)) +
+    theme(axis.text.x = element_text(size = 8), 
           axis.text.y = element_text(size = 10),
           axis.title.y = element_text(size = 13),
           axis.title.x = element_text(size = 13)) +
-    ggtitle(paste("Consumption:", svspp_level))
+    ggtitle(paste("log(Consumption):", svspp_level))
   
   # Create the biomass plot
-  dist_plot_biomass <- ggplot(filtered_data, aes(x = year, y = biompop, fill = prey)) +
+  dist_plot_biomass <- ggplot(filtered_data, aes(x = year, y = log_biompop, fill = prey)) +
     geom_point(stat = 'identity') +
     geom_smooth(method = lm, aes(color = prey), linewidth = 1, se = FALSE) +
     xlab("Time (year)") +
-    ylab("Biomass (kg)") + 
-    facet_wrap(~prey + seacat, scales = "free") +
+    ylab("log(Biomass)") + 
+    facet_wrap(~seacat, scales = "free", nrow = 8, ncol = 2) +
+    scale_x_continuous(breaks = c(1980, 2000, 2020)) +
     theme_bw() +
-    theme(plot.title = element_text(size = 15)) +
-    theme(axis.text.x = element_text(size = 10), 
+    theme(plot.title = element_text(size = 10)) +
+    theme(axis.text.x = element_text(size = 8), 
           axis.text.y = element_text(size = 10),
           axis.title.y = element_text(size = 13),
           axis.title.x = element_text(size = 13)) +
-    ggtitle(paste("Biomass:", svspp_level))
+    ggtitle(paste("log(Biomass):", svspp_level))
 
   # Add the plot to the list
   dist_plots_list[[svspp_level]] <- dist_plot_consumption + dist_plot_biomass
@@ -112,52 +165,56 @@ for (dist_plot in dist_plots_list) {
 
 ### Doing the same thing as above but just grouping it by all prey to look at total consumption and biomass over time side by side
 
-```{r, out.width='100%', fig.height=6, echo=FALSE}
+```{r, out.width='100%', fig.height=5, echo=FALSE}
 library(patchwork)
 
 # creating list to save plots
 dist_plots_list <- list()
 
 # Get unique levels of svspp
-svspp_levels <- unique(data_comb_f$svspp)
+svspp_levels <- unique(data_comb_f2$svspp)
 
 # Loop through svspp levels
 for (svspp_level in svspp_levels) {
   # Filter data for the current svspp level
-  filtered_data <- data_comb_f %>%
+  filtered_data <- data_comb_f2 %>%
     filter(svspp == svspp_level & prey == "all")
 
   # Create the consumption plot
-  dist_plot_consumption <- ggplot(filtered_data, aes(x = year, y = CMT)) +
+  dist_plot_consumption <- ggplot(filtered_data, aes(x = year, y = log_CMT)) +
     geom_point(stat = 'identity') +
+    geom_errorbar(aes(ymin = log_lci_CMT, ymax = log_uci_CMT), 
+                width = 0.2, 
+                position = position_dodge(width = 0.2)) +
     geom_smooth(method = lm, linewidth = 1, se = FALSE) +
     xlab("Time (year)") +
-    ylab("Consumption (metric tons)") + 
+    ylab("log(consumption)") + 
     facet_wrap(~seacat, scales = "free") +
     scale_x_continuous(breaks = c(1980, 2000, 2020)) +
     theme(legend.text = element_text(size = 5)) +
     theme_bw() +
-    theme(plot.title = element_text(size = 15)) +
-    theme(axis.text.x = element_text(size = 10), 
+    theme(plot.title = element_text(size = 12)) +
+    theme(axis.text.x = element_text(size = 8), 
           axis.text.y = element_text(size = 10),
           axis.title.y = element_text(size = 13),
           axis.title.x = element_text(size = 13)) +
-    ggtitle(paste("Consumption:", svspp_level))
+    ggtitle(paste("log(Consumption):", svspp_level))
   
    # Create the biomass plot
-  dist_plot_biomass <- ggplot(filtered_data, aes(x = year, y = biompop)) +
+  dist_plot_biomass <- ggplot(filtered_data, aes(x = year, y = log_biompop)) +
     geom_point(stat = 'identity') +
     geom_smooth(method = lm, linewidth = 1, se = FALSE) +
     xlab("Time (year)") +
-    ylab("Biomass (kg)") + 
+    ylab("log(Biomass)") + 
+    scale_x_continuous(breaks = c(1980, 2000, 2020)) +
     facet_wrap(~seacat, scales = "free") +
     theme_bw() +
-    theme(plot.title = element_text(size = 15)) +
-    theme(axis.text.x = element_text(size = 10), 
+    theme(plot.title = element_text(size = 12)) +
+    theme(axis.text.x = element_text(size = 8), 
           axis.text.y = element_text(size = 10),
           axis.title.y = element_text(size = 13),
           axis.title.x = element_text(size = 13)) +
-    ggtitle(paste("Biomass:", svspp_level))
+    ggtitle(paste("log(Biomass):", svspp_level))
 
   # Add the plot to the list
   dist_plots_list[[svspp_level]] <- dist_plot_consumption + dist_plot_biomass
@@ -170,5 +227,145 @@ for (dist_plot in dist_plots_list) {
 
 ```
 
-#### Questions Regarding these Outputs
-It appears as if the results prior to 1981 are showing both significantly more biomass and consumption; do we need to account for this or because they are both changing in the same direction we're fine?
+### Doing the same thing as above in regular numeric space (not logged)
+```{r, out.width='100%', fig.height=5, echo=FALSE}
+library(patchwork)
+
+# creating list to save plots
+dist_plots_list <- list()
+
+# Get unique levels of svspp
+svspp_levels <- unique(data_comb_f2$svspp)
+
+# Loop through svspp levels
+for (svspp_level in svspp_levels) {
+  # Filter data for the current svspp level
+  filtered_data <- data_comb_f2 %>%
+    filter(svspp == svspp_level & prey == "all")
+
+  # Create the consumption plot
+  dist_plot_consumption <- ggplot(filtered_data, aes(x = year, y = CMT)) +
+    geom_point(stat = 'identity') +
+    geom_errorbar(aes(ymin = lci.CMT, ymax = uci.CMT), 
+                width = 0.2, 
+                position = position_dodge(width = 0.2)) +
+    geom_smooth(method = lm, linewidth = 1, se = FALSE) +
+    xlab("Time (year)") +
+    ylab("Consumption (metric tons)") + 
+    facet_wrap(~seacat, scales = "free") +
+    scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+    theme(legend.text = element_text(size = 5)) +
+    theme_bw() +
+    theme(plot.title = element_text(size = 12)) +
+    theme(axis.text.x = element_text(size = 8), 
+          axis.text.y = element_text(size = 10),
+          axis.title.y = element_text(size = 13),
+          axis.title.x = element_text(size = 13)) +
+    ggtitle(paste("Consumption:", svspp_level))
+  
+   # Create the biomass plot
+  dist_plot_biomass <- ggplot(filtered_data, aes(x = year, y = biompop)) +
+    geom_point(stat = 'identity') +
+    geom_smooth(method = lm, linewidth = 1, se = FALSE) +
+    xlab("Time (year)") +
+    ylab("Biomass (kg") + 
+    scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+    facet_wrap(~seacat, scales = "free") +
+    theme_bw() +
+    theme(plot.title = element_text(size = 12)) +
+    theme(axis.text.x = element_text(size = 8), 
+          axis.text.y = element_text(size = 10),
+          axis.title.y = element_text(size = 13),
+          axis.title.x = element_text(size = 13)) +
+    ggtitle(paste("log(Biomass):", svspp_level))
+
+  # Add the plot to the list
+  dist_plots_list[[svspp_level]] <- dist_plot_consumption + dist_plot_biomass
+}
+
+# Print the plots
+for (dist_plot in dist_plots_list) {
+  print(dist_plot)
+}
+
+```
+
+
+### Plotting Consumption Against Biomass
+```{r, out.width='100%', fig.height=5, echo=FALSE}
+library(patchwork)
+
+# creating list to save plots
+dist_plots_list <- list()
+
+# Get unique levels of svspp
+svspp_levels <- unique(data_comb_f2$svspp)
+
+# Loop through svspp levels
+for (svspp_level in svspp_levels) {
+  # Filter data for the current svspp level
+  filtered_data <- data_comb_f2 %>%
+    filter(svspp == svspp_level & prey == "all")
+
+  # Create the consumption plot
+  dist_plot_consvbiom <- ggplot(filtered_data, aes(x = log_biompop, y = log_CMT)) +
+    geom_point(stat = 'identity') +
+    geom_errorbar(aes(ymin = log_lci_CMT, ymax = log_uci_CMT), 
+                width = 0.2, 
+                position = position_dodge(width = 0.2)) +
+    geom_smooth(method = lm, linewidth = 1, se = FALSE) +
+    xlab("log(biomass)") +
+    ylab("log(consumption)") + 
+    facet_wrap(~seacat, scales = "free") +
+    scale_x_continuous(breaks = c(1980, 2000, 2020)) +
+    theme(legend.text = element_text(size = 5)) +
+    theme_bw() +
+    theme(plot.title = element_text(size = 12)) +
+    theme(axis.text.x = element_text(size = 8), 
+          axis.text.y = element_text(size = 10),
+          axis.title.y = element_text(size = 13),
+          axis.title.x = element_text(size = 13)) +
+    ggtitle(paste("log(Consumption:Biomass):", svspp_level))
+  
+
+  # Add the plot to the list
+  dist_plots_list[[svspp_level]] <- dist_plot_consvbiom
+}
+
+# Print the plots
+for (dist_plot in dist_plots_list) {
+  print(dist_plot)
+}
+
+```
+
+### Calculating Coefficient of Variation
+```{r}
+output <- list()
+
+# Get unique levels of seacat
+seacat_levels <- unique(data_comb_f2$seacat)
+
+# Loop through seacat levels
+for (seacat_level in seacat_levels) {
+  # Filter data for the current seacat level and prey "all"
+  filtered_data <- data_comb_f2 %>%
+    filter(seacat == seacat_level, prey == "all")
+
+  # Calculate coefficient of variation for CMT within each group of svspp
+  coeffvar <- filtered_data %>%
+    group_by(svspp, seacat) %>%
+    summarize(coeffvar = sd(CMT, na.rm = T) / mean(CMT, na.rm = T))
+
+  # Add the results to the output list
+  output[[as.character(seacat_level)]] <- coeffvar
+}
+
+# Print the coefficient of variance values
+for (coeffvar in output) {
+   print(coeffvar)
+}
+
+```
+
+
